@@ -1,0 +1,30 @@
+import {spawn} from "node:child_process";
+import {createReadStream} from "node:fs";
+import {readFile,writeFile} from "node:fs/promises";
+import {pipeline} from "node:stream/promises";
+import {randomUUID} from "node:crypto";
+import path from "node:path";
+const directory=path.resolve(process.argv[2]??"");
+const backupRoot=path.resolve("backups")+path.sep;
+if(!directory.startsWith(backupRoot))throw new Error("Selecciona un respaldo dentro de backups");
+const envFile=process.argv[3]??".env.test",project=process.argv[4]??"pbb-validation";
+if(!/^[a-z0-9][a-z0-9_-]+$/.test(project))throw new Error("Proyecto inválido");
+const env=Object.fromEntries((await readFile(envFile,"utf8")).split(/\r?\n/).filter(line=>line.includes("=")&&!line.startsWith("#")).map(line=>{const i=line.indexOf("=");return [line.slice(0,i),line.slice(i+1)];}));
+if(env.APP_ENV!=="test"||env.POSTGRES_DB!=="planetababys_test")throw new Error("La restauración automática exige el entorno aislado de prueba");
+const user=env.POSTGRES_USER??"planetababys";
+if(!/^[a-zA-Z0-9_]+$/.test(user))throw new Error("Usuario inválido");
+const database="restore_validation_"+randomUUID().replaceAll("-","");
+async function run(args,input){
+  const child=spawn("docker",["compose","--env-file",envFile,"-p",project,"exec","-T",...args],{stdio:[input?"pipe":"ignore","pipe","inherit"],shell:false});
+  let output="";child.stdout.setEncoding("utf8");child.stdout.on("data",data=>output+=data);
+  const done=new Promise((resolve,reject)=>{child.on("error",reject);child.on("exit",code=>code===0?resolve():reject(new Error("Verificación falló; base nueva: "+database)));});
+  if(input)await Promise.all([pipeline(createReadStream(input),child.stdin),done]);else await done;
+  return output.trim();
+}
+await run(["db","createdb","-U",user,database]);
+await run(["db","pg_restore","--exit-on-error","-U",user,"-d",database],path.join(directory,"database.dump"));
+const counts=await run(["db","psql","-U",user,"-d",database,"-At","-c","SELECT (SELECT count(*) FROM products), (SELECT count(*) FROM orders), (SELECT count(*) FROM payments), (SELECT count(*) FROM admin_users);"]);
+const archive=await run(["backend","tar","-tzf","-"],path.join(directory,"uploads.tar.gz"));
+const report={date:new Date().toISOString(),project,restoredDatabase:database,counts,archiveEntries:archive.split("\n").filter(Boolean).length,scope:"Restauración PostgreSQL a base nueva y lectura del archivo uploads; no promoción ni desastre completo"};
+await writeFile(path.join(directory,"verification.json"),JSON.stringify(report,null,2));
+console.log(JSON.stringify(report));

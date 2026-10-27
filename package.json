@@ -1,0 +1,65 @@
+{
+  "name": "planetababys-ecommerce",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build:api": "corepack pnpm@10.30.1 --filter @planetababys/api build",
+    "dev:api": "corepack pnpm@10.30.1 --filter @planetababys/api dev",
+    "test:integration": "tsx --env-file=.env.test --test tests/integration.test.ts",
+    "test:shipping": "tsx --env-file=.env.test --test tests/shipping-api.test.ts",
+    "test:store-sales": "tsx --env-file=.env.test --test tests/store-sales-api.test.ts",
+    "test:admin": "tsx --env-file=.env.test --test tests/admin-catalog.test.ts",
+    "test:promotions": "tsx --env-file=.env.test --test tests/promotions-api.test.ts",
+    "test:analytics": "tsx --test tests/analytics.test.ts",
+    "test:analytics:api": "tsx --env-file=.env.test --test tests/analytics-api.test.ts",
+    "test:validators": "tsx --test tests/field-validation.test.ts tests/input-restrictions.test.ts tests/promotions.test.ts",
+    "start": "next start",
+    "postinstall": "prisma generate",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "test:e2e": "cypress run"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@fontsource/fraunces": "^5.3.0",
+    "@fontsource/nunito-sans": "^5.3.0",
+    "@prisma/client": "6.19.3",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
+    "lucide-react": "^0.468.0",
+    "next": "16.3.8",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "sharp": "^0.34.5",
+    "sonner": "^2.0.7",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "autoprefixer": "^10.4.20",
+    "cypress": "^13.16.2",
+    "postcss": "^8.4.49",
+    "prisma": "6.19.3",
+    "start-server-and-test": "^2.0.8",
+    "tailwindcss": "^3.4.16",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@10.30.1"
+}

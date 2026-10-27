@@ -1,0 +1,6 @@
+"use client";
+import Link from "next/link";
+import {usePathname} from "next/navigation";
+import BrandIcon,{type BrandIconName} from "@/shared/ui/brand-icon";
+const links:{href:string;label:string;icon:BrandIconName}[]=[{href:"/admin",label:"Resumen",icon:"planet"},{href:"/admin/productos",label:"Productos",icon:"products"},{href:"/admin/pedidos",label:"Pedidos web",icon:"orders"},{href:"/admin/ventas-local",label:"Ventas del local",icon:"store"},{href:"/admin/cotizaciones",label:"Envíos",icon:"ticket"}];
+export default function AdminNavigation(){const path=usePathname();return <div className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:gap-2">{links.map(item=>{const active=item.href==="/admin"?path===item.href:path.startsWith(item.href);return <Link key={item.href} href={item.href} aria-current={active?"page":undefined} className={"admin-nav-link "+(active?"admin-nav-active":"")}><BrandIcon name={item.icon} size={20}/>{item.label}</Link>;})}</div>;}

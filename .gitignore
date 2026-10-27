@@ -1,0 +1,77 @@
+# Dependencias y caches
+node_modules/
+.pnpm-store/
+.cache/
+.next/
+/dist/
+/backend/dist/
+/build/
+/out/
+*.tsbuildinfo
+/next-env.d.ts
+
+# Entornos privados; solo se publica la plantilla saneada
+.env
+.env.*
+*.env
+*.env.*
+!/.env.example
+.envrc
+.direnv/
+/secrets/
+/.secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+.ssh/
+id_rsa
+id_ed25519
+.npmrc.local
+.npmrc.private
+
+# Datos persistentes, archivos subidos y respaldos
+uploads/
+uploads-test/
+data/
+backups/
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+*.sql.bz2
+dump.rdb
+appendonly.aof*
+
+# Documentacion interna, evidencias y originales privados
+/docs/obsidian/
+/docs/validation/
+/docs/assets/
+
+# Resultados de pruebas, exportaciones y temporales
+coverage/
+/test-results/
+/playwright-report/
+/blob-report/
+/cypress/screenshots/
+/cypress/videos/
+/output/
+/tmp/
+/temp/
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# Preferencias locales del editor y del sistema
+.vscode/
+.idea/
+.obsidian/
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,252 @@
+// ============================================================
+// Planeta Baby's - Esquema de base de datos (Prisma / PostgreSQL)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------- Catálogo ---------
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String   @default("")
+  priceCents  Int
+  stock       Int      @default(0)
+  category    String   @default("general")
+  isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  promotionEnabled Boolean @default(false)
+  promotionPriceCents Int?
+  promotionStartsAt DateTime?
+  promotionEndsAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  images      ProductImage[]
+  storeSaleItems StoreSaleItem[]
+
+  @@index([category])
+  @@index([isActive])
+  @@index([isActive, promotionEnabled, promotionEndsAt])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String  @default("")
+  sort      Int     @default(0)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// --------- Pedidos (checkout como invitado) ---------
+
+model Order {
+  id             String      @id @default(cuid())
+  reference      String      @unique
+  status         OrderStatus @default(PENDING)
+  totalCents     Int
+  customerName   String
+  customerPhone  String
+  customerEmail  String
+  customerDoc    String?     /// documento opcional (requerido por PSE/Wompi)
+  shippingAddress String
+  shippingCity   String
+  shippingNotes  String?
+  dataConsent    Boolean     @default(false) /// aceptación Ley 1581 (Habeas Data)
+  termsAccepted  Boolean     @default(false)
+  consentAt      DateTime?
+  policyVersion  String      @default("2026-10-08")
+  checkoutKey    String?     @unique
+  checkoutHash   String?
+  shippingCents  Int         @default(0)
+  stockReleased  Boolean     @default(false)
+  expiresAt      DateTime?
+  reviewRequired Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
+  payments       Payment[]
+  shippingQuoteId String?    @unique
+  shippingQuote   ShippingQuote? @relation(fields: [shippingQuoteId], references: [id])
+
+  @@index([status])
+  @@index([customerEmail])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+// Private delivery quotation. No inventory reservation until final checkout.
+model ShippingQuote {
+  id              String   @id @default(cuid())
+  reference       String   @unique
+  status          String   @default("REQUESTED")
+  requestKey      String   @unique
+  requestHash     String
+  request         Json
+  lines           Json
+  subtotalCents   Int
+  shippingCents   Int?
+  deliveryEstimate String?
+  policyVersion   String
+  consentAt       DateTime
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  order           Order?
+
+  @@index([status, createdAt, id])
+  @@map("shipping_quotes")
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  name       String  /// snapshot del nombre
+  unitCents  Int     /// snapshot del precio unitario
+  quantity   Int
+  imageUrl   String?
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PACKED
+  SHIPPED
+  VOIDED
+  DECLINED
+  DELIVERED
+  CANCELLED
+  @@map("order_status")
+}
+
+// --------- Pagos (Wompi) ---------
+
+model Payment {
+  id             String        @id @default(cuid())
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider       String        @default("wompi")
+  transactionId  String?       @unique /// id de transacción Wompi
+  reference      String        /// referencia que enviamos a Wompi
+  status         PaymentStatus @default(PENDING)
+  amountInCents  Int
+  currency       String        @default("COP")
+  paymentMethod  String?       /// CARD, NEQUI, PSE, BANCOLOMBIA...
+  wompiData      Json?         /// Solo campos técnicos permitidos, nunca payload crudo
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([status, updatedAt, orderId])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  VOIDED
+  ERROR
+  @@map("payment_status")
+}
+
+// --------- Panel administrativo ---------
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String   @default("Administrador")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  recordedStoreSales StoreSale[] @relation("StoreSaleRecorder")
+  voidedStoreSales StoreSale[] @relation("StoreSaleVoider")
+
+  @@map("admin_users")
+}
+
+// Ventas presenciales: registro administrativo, independiente de Wompi.
+model StoreSale {
+  id String @id @default(cuid())
+  reference String @unique
+  status StoreSaleStatus @default(COMPLETED)
+  paymentMethod StoreSalePaymentMethod
+  totalCents Int
+  cashReceivedCents Int?
+  cashChangeCents Int?
+  paymentReference String?
+  notes String @default("")
+  saleKey String @unique
+  requestHash String
+  recordedById String
+  recordedBy AdminUser @relation("StoreSaleRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  voidedAt DateTime?
+  voidReason String?
+  voidedById String?
+  voidedBy AdminUser? @relation("StoreSaleVoider", fields: [voidedById], references: [id], onDelete: Restrict)
+  items StoreSaleItem[]
+
+  @@index([status, createdAt, id])
+  @@index([paymentMethod, createdAt])
+  @@map("store_sales")
+}
+
+model StoreSaleItem {
+  id String @id @default(cuid())
+  saleId String
+  sale StoreSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  name String
+  unitCents Int
+  quantity Int
+  imageUrl String?
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("store_sale_items")
+}
+
+enum StoreSaleStatus {
+  COMPLETED
+  VOIDED
+  @@map("store_sale_status")
+}
+
+enum StoreSalePaymentMethod {
+  CASH
+  TRANSFER
+  @@map("store_sale_payment_method")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String?
+  action    String   /// CREATE_PRODUCT, UPDATE_PRICE, DELETE_PRODUCT, LOGIN...
+  entity    String   /// Product, Order, AdminUser...
+  entityId  String?
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
