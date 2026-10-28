@@ -11,6 +11,7 @@ import { useParams } from "next/navigation";
 import { formatCOP, formatDate } from "@/lib/money";
 import { orderStatusLabel, paymentStatusLabel } from "@/lib/labels";
 import BrandIcon from "@/shared/ui/brand-icon";
+import OrderTotals from "@/shared/ui/order-totals";
 
 type OrderData = {
   order: {
@@ -18,7 +19,11 @@ type OrderData = {
     reference: string;
     status: string;
     reviewRequired:boolean;
+    simulated:boolean;
+    simulationAvailable:boolean;
+    expiresAt:string|null;
     totalCents: number;
+    shippingCents:number;
     createdAt: string;
     customerName: string;
     shippingCity: string;
@@ -58,7 +63,7 @@ export default function PedidoPage() {
           setNotFound(true);
           return;
         }
-        if (!res.ok) return;
+        if (!res.ok) {if(!stop)timer=window.setTimeout(poll,5000);return;}
         const json = (await res.json()) as OrderData;
         if (stop) return;
         setData(json);
@@ -112,6 +117,7 @@ export default function PedidoPage() {
 
   return (
     <div className="container-page max-w-3xl py-10">
+      {order.simulated&&<div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="note"><strong>Pedido de prueba · Sin cobros reales</strong><p className="mt-1">Este resultado pertenece a una demostración y no acredita un pago en Wompi.</p></div>}
       <div className="card p-8 text-center">
         <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full ring-1 ring-inset ${iconStyles[paymentState]}`}
           aria-hidden="true" data-testid="payment-status-icon" data-state={paymentState}>
@@ -126,7 +132,7 @@ export default function PedidoPage() {
         </span>
 
         <h1 className="mt-4 text-2xl font-extrabold text-gray-900">
-          {order.reviewRequired ? "Estamos revisando tu pedido" : paid
+          {order.simulated ? (paid?"Pago de prueba aprobado":order.status==="DECLINED"?"Pago de prueba rechazado":pending?"Pago de prueba pendiente":"La reserva de prueba terminó") : order.reviewRequired ? "Estamos revisando tu pedido" : paid
             ? "¡Gracias por tu compra!"
             : order.status === "DECLINED"
               ? "El pago fue rechazado"
@@ -134,12 +140,13 @@ export default function PedidoPage() {
         </h1>
 
         <p className="mt-2 text-gray-600" data-testid="order-thanks">
-          {order.reviewRequired ? "Recibimos una actualización que requiere revisar el pago y la disponibilidad. Conserva tu referencia; el pedido todavía no se puede despachar." : paid
+          {order.simulated ? (paid?"La demostración terminó correctamente. No se realizó ningún cobro.":pending?"Así se ve un pago que espera confirmación. Puedes continuar la demostración para aprobarlo o rechazarlo.":"No se realizó ningún cobro. Puedes iniciar otra compra de prueba para conocer un resultado diferente.") : order.reviewRequired ? "Recibimos una actualización que requiere revisar el pago y la disponibilidad. Conserva tu referencia; el pedido todavía no se puede despachar." : paid
             ? `Hola ${order.customerName}, tu pago está confirmado. Puedes consultar aquí el avance de la preparación y entrega en ${order.shippingCity}.`
             : pending
               ? `Si completaste el pago en Wompi, esta página se actualizará automáticamente en unos segundos. Guarda tu referencia: ${order.reference}`
               : "Puedes regresar al catálogo para iniciar una nueva compra. Conserva esta referencia si necesitas consultar el pago."}
         </p>
+        {pending&&order.simulationAvailable&&<Link className="btn-primary mt-5" data-testid="resume-simulation" href={`/pago/prueba/${order.id}?token=${encodeURIComponent(new URLSearchParams(window.location.search).get("token")??"")}`}>Continuar demostración</Link>}
       </div>
 
       <div className="card mt-6 p-6">
@@ -153,6 +160,7 @@ export default function PedidoPage() {
             <li key={idx} className="flex justify-between text-sm">
               <span>
                 {i.quantity}× {i.name}
+                <small className="mt-1 block text-xs text-brand-muted">Precio unitario: {formatCOP(i.unitCents)}</small>
               </span>
               <span className="font-medium">
                 {formatCOP(i.unitCents * i.quantity)}
@@ -161,12 +169,7 @@ export default function PedidoPage() {
           ))}
         </ul>
 
-        <div className="mt-4 flex justify-between border-t border-gray-200 pt-4">
-          <span className="font-bold">Total</span>
-          <span className="font-extrabold text-baby-pink-700" data-testid="order-total">
-            {formatCOP(order.totalCents)}
-          </span>
-        </div>
+        <OrderTotals items={order.items} shippingCents={order.shippingCents} totalCents={order.totalCents}/>
 
         {order.payment && (
           <p className="mt-4 text-sm text-gray-500">

@@ -1,4 +1,5 @@
 import "server-only";
+import {apiProxyHeaders} from "./proxy-context";
 import type {PromotionSource,PromotionStatus} from "@/shared/promotions";
 export type Product = PromotionSource & {
   id:string;slug:string;name:string;description:string;priceCents:number;stock:number;
@@ -7,7 +8,7 @@ export type Product = PromotionSource & {
 };
 const base=()=>process.env.API_INTERNAL_URL ?? "http://127.0.0.1:4000";
 export async function serverApi<T>(url:string,cookie?:string):Promise<T> {
-  const response=await fetch(`${base()}/api${url}`,{cache:"no-store",headers:cookie?{Cookie:cookie}:{},signal:AbortSignal.timeout(10000)});
+  const response=await fetch(`${base()}/api${url}`,{cache:"no-store",headers:{...await apiProxyHeaders("GET",`/api${url}`),...(cookie?{Cookie:cookie}:{})},signal:AbortSignal.timeout(10000)});
   if(!response.ok) throw new Error(`API no disponible (${response.status})`);
   return response.json();
 }
@@ -17,7 +18,8 @@ export function catalog(params:Record<string,string|number|undefined>={}) {
   return serverApi<{products:Product[];total:number;page:number;pages:number}>(`/products?${query}`);
 }
 export async function productBySlug(slug:string):Promise<Product|null> {
-  const response=await fetch(`${base()}/api/products/${encodeURIComponent(slug)}`,{cache:"no-store"});
+  const target=`/api/products/${encodeURIComponent(slug)}`;
+  const response=await fetch(`${base()}${target}`,{cache:"no-store",headers:await apiProxyHeaders("GET",target),signal:AbortSignal.timeout(10000)});
   if(response.status===404) return null;
   if(!response.ok) throw new Error("No se pudo consultar el producto");
   return ((await response.json()) as {product:Product}).product;

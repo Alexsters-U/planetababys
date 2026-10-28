@@ -21,12 +21,12 @@ function OfferForm({quote,onSaved}:{quote:ShippingQuoteView;onSaved:()=>void}) {
     try {
       const response=await fetch(`/api/admin/shipping-quotes/${quote.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({shippingCents,deliveryEstimate:String(form.get("estimate"))})});
       const data=await response.json();if(!response.ok)throw new Error(data.error);
-      toast.success("Envío confirmado. Comparte el enlace de pago con el cliente.");onSaved();
+      toast.success("Envío confirmado. Comparte el enlace de pago con el cliente.");window.dispatchEvent(new Event("pbb:shipping-changed"));onSaved();
     }catch(e){setError(e instanceof Error?e.message:"Error de conexión.");}finally{setBusy(false);}
   }
   async function decline(){
     setBusy(true);setError("");
-    try {const response=await fetch(`/api/admin/shipping-quotes/${quote.id}/decline`,{method:"POST"});if(!response.ok)throw new Error((await response.json()).error);toast.success("Solicitud marcada sin entrega disponible");onSaved();}
+    try {const response=await fetch(`/api/admin/shipping-quotes/${quote.id}/decline`,{method:"POST"});if(!response.ok)throw new Error((await response.json()).error);toast.success("Solicitud marcada sin entrega disponible");window.dispatchEvent(new Event("pbb:shipping-changed"));onSaved();}
     catch(e){setError(e instanceof Error?e.message:"Error de conexión.");}finally{setBusy(false);}
   }
   return <form {...spanishValidation} onSubmit={submit} className="mt-4 space-y-3 rounded-xl bg-brand-cream p-4"><p className="text-sm">Acuerda el servicio por WhatsApp e ingresa la tarifa del domiciliario (Mocoa) o de la transportadora (fuera del municipio). Al confirmar, el importe queda fijado para este carrito y dirección.</p><div className="grid gap-3 sm:grid-cols-2"><label className="label">Costo del envío (COP) *<RestrictedInput name="price" restriction="decimal" required maxLength={10} pattern={PRICE_PATTERN} inputMode="decimal" data-format-message={PRICE_MESSAGE} className="input mt-1" placeholder="Ej. 5000" data-testid="quote-cost"/></label><label className="label">Plazo de entrega acordado *<input name="estimate" required minLength={3} maxLength={120} className="input mt-1" placeholder="Ej. 1 a 2 días hábiles" data-testid="quote-estimate"/></label></div><p className="text-xs text-brand-muted">Puedes indicar 0 únicamente si acordaste expresamente envío gratuito. Vigencia: 24 horas desde la confirmación.</p>{error&&<p role="alert" className="text-sm text-red-700">{error}</p>}<div className="flex flex-wrap gap-3"><button className="btn-primary disabled:opacity-50" disabled={busy} type="submit" data-testid="quote-confirm">{busy?"Guardando…":"Confirmar costo y entrega"}</button><button type="button" className="btn-outline disabled:opacity-50" disabled={busy} onClick={()=>void decline()}>Sin entrega disponible</button></div></form>;
@@ -49,6 +49,11 @@ export default function AdminQuotations() {
     finally{if(current===sequence.current)setLoading(false);}
   },[page,query]);
   useEffect(()=>{void load();return()=>{sequence.current++;};},[load]);
+  useEffect(()=>{
+    const showPending=()=>{setFilters(defaults);setPage(1);if(page===1&&query==="status=REQUESTED&pageSize=25")void load();};
+    window.addEventListener("pbb:shipping-open",showPending);
+    return()=>window.removeEventListener("pbb:shipping-open",showPending);
+  },[load,page,query,setFilters]);
   return <div><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="section-title">Cotizaciones de envío</h1><button type="button" className="btn-outline" onClick={()=>void load()}>Actualizar</button></div><p className="mt-3 text-brand-muted">1. Busca la referencia recibida por WhatsApp. 2. Confirma costo y plazo. 3. Comparte el enlace para que el cliente revise el total y pague.</p>
     <AdminListControls values={filters} filters={[{key:"status",label:"Estado",options:[{value:"",label:"Todos"},...Object.entries(statusLabels).map(([value,label])=>({value,label}))]}]} searchLabel="Referencia de cotización" onChange={(key,value)=>{setFilters(current=>({...current,[key]:value}));setPage(1);}} onReset={()=>{setFilters(defaults);setPage(1);}} total={total} page={page} loading={loading}/>
     {error&&<p className="mt-4 text-red-700" role="alert">{error}</p>}

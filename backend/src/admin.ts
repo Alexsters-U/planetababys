@@ -15,6 +15,7 @@ import {promotionWhere,pricedProduct} from "./promotions";
 import {dashboardSummary} from "./analytics";
 import {offerSchema,quotePublic,shippingToken} from "./shipping";
 import {storeSales} from "./store-sales";
+import {shippingNotifications} from "./admin-notifications";
 export const admin=express.Router();
 const pageSchema=z.coerce.number().int().min(1).max(100000).default(1);
 const pageSizeSchema=z.enum(["10","25","50","100"]).default("25").transform(Number);
@@ -23,6 +24,7 @@ const productsQuery=z.object({page:pageSchema,pageSize:pageSizeSchema,q:z.string
   stock:z.enum(["all","available","empty","low"]).default("all"),promotion:z.enum(["all","active","scheduled","expired","none"]).default("all"),sort:z.enum(["newest","name","priceAsc","priceDesc"]).default("newest")});
 const ordersQuery=z.object({page:pageSchema,pageSize:pageSizeSchema,q:z.string().trim().max(100).default(""),
   status:z.enum(["PENDING","PAID","PACKED","SHIPPED","DELIVERED","DECLINED","VOIDED","CANCELLED"]).optional(),review:z.enum(["all","required","clear"]).default("all")});
+admin.get("/notifications",requireAdmin,limit("admin-notifications",60,60),async(_req,res)=>res.json(await shippingNotifications(res.locals.admin.id)));
 admin.use(requireAdmin,limit("admin",120,60));
 admin.use("/store-sales",storeSales);
 admin.get("/shipping-quotes",async(req,res)=>{
@@ -142,7 +144,7 @@ admin.get("/orders",async(req,res)=>{
   const result=await db.$transaction(async tx=>{
     const total=await tx.order.count({where}),pages=Math.max(1,Math.ceil(total/query.pageSize)),page=Math.min(query.page,pages);
     const orders=await tx.order.findMany({where,orderBy:[{createdAt:"desc"},{id:"desc"}],take:query.pageSize,skip:(page-1)*query.pageSize,include:{items:true,payments:{orderBy:{createdAt:"desc"},take:1}}});
-    return {orders:orders.map(o=>({...o,payments:o.payments.map(p=>({status:p.status,method:p.paymentMethod,transactionId:p.transactionId}))})),total,page,pages,pageSize:query.pageSize};
+    return {orders:orders.map(o=>({...o,simulated:o.payments.some(p=>p.provider==="simulator"),payments:o.payments.map(p=>({status:p.status,method:p.paymentMethod,transactionId:p.transactionId}))})),total,page,pages,pageSize:query.pageSize};
   },{isolationLevel:"RepeatableRead"});
   res.json(result);
 });

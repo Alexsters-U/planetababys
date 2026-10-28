@@ -10,7 +10,7 @@ const transactionSchema = z.object({
 export type Transaction = z.infer<typeof transactionSchema>;
 const eventSchema=z.object({
   event:z.literal("transaction.updated"), environment:z.enum(["test","prod"]),
-  timestamp:z.number().int().positive(), data:z.object({transaction:z.record(z.unknown())}),
+  timestamp:z.number().int().positive(), data:z.object({transaction:z.record(z.string(),z.unknown())}),
   signature:z.object({checksum:z.string().regex(/^[a-fA-F0-9]{64}$/),properties:z.array(z.string().max(100)).min(3).max(20)}),
 });
 export function checksum(data:Record<string,unknown>,properties:string[],timestamp:number,key:string) {
@@ -49,7 +49,7 @@ export async function verifiedTransaction(body:unknown) {
   return canonical;
 }
 export function checkoutUrl(order:{id:string;reference:string;totalCents:number;expiresAt:Date|null},token:string) {
-  if(config.PAYMENT_MODE==="test") return `${config.SITE_URL}/pedido/${order.id}?token=${encodeURIComponent(token)}`;
+  if(config.PAYMENT_MODE==="test") return `${config.SITE_URL}/pago/prueba/${order.id}?token=${encodeURIComponent(token)}`;
   const expiration=order.expiresAt!.toISOString();
   const signature=createHash("sha256").update(`${order.reference}${order.totalCents}COP${expiration}${config.WOMPI_INTEGRITY_KEY}`).digest("hex");
   const params=new URLSearchParams({

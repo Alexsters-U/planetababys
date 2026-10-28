@@ -9,6 +9,7 @@ import PromotionRefresh from "@/shared/promotions/promotion-refresh";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
+  alternates:{canonical:"/catalogo"},
   title: "Catálogo",
   description: "Todos los productos para tu bebé en Planeta Baby's.",
 };

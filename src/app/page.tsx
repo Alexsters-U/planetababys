@@ -7,6 +7,7 @@ import CareBanner from "@/widgets/home/ui/care-banner";
 import LocationSection from "@/widgets/home/ui/location-section";
 import PromotionRefresh from "@/shared/promotions/promotion-refresh";
 export const dynamic = "force-dynamic";
+export const metadata={alternates:{canonical:"/"}};
 const categories = [
   { key: "panales", title: "Pañales y cuidado", image: "panales-etapa-1", caption: "Suavidad para cada día", color: "bg-brand-lilac" },
   { key: "lactancia", title: "Alimentación", image: "tetero", caption: "Momentos llenos de conexión", color: "bg-brand-rose" },
@@ -24,7 +25,7 @@ export default async function HomePage() {
       <div className="container-page grid gap-5 py-7 sm:grid-cols-3">
         {[
           { icon: Truck, title: "Con cariño, hasta tu puerta", text: "Consulta la cobertura de entrega", color: "bg-brand-mintLight" },
-          { icon: ShieldCheck, title: "Tu pago, en buenas manos", text: "Checkout alojado de Wompi", color: "bg-brand-lilac" },
+          { icon: ShieldCheck, title: "Tu pago, en buenas manos", text: "Tu pago se verifica en Wompi", color: "bg-brand-lilac" },
           { icon: ShoppingBag, title: "Más fácil para ti", text: "Compra sin necesidad de registrarte", color: "bg-brand-rose" },
         ].map(({ icon: Icon, title, text, color }) => <div key={title} className="flex items-center gap-3"><span className={"rounded-2xl p-3 text-brand-primary " + color}><Icon size={21} aria-hidden /></span><div><h2 className="text-sm font-extrabold">{title}</h2><p className="mt-1 text-xs text-brand-muted">{text}</p></div></div>)}
       </div>

@@ -10,22 +10,24 @@ import path from "node:path";
 import {ZodError,z} from "zod";
 import {config} from "./config";
 import {db,serializable} from "./db";
-import {ADMIN_COOKIE,cookieOptions,redis,signSession,readSession,requireAdmin,sameOrigin,isAllowedOrigin,limit,canReadOrder,orderToken} from "./security";
+import {ADMIN_COOKIE,cookieOptions,redis,signSession,readSession,requireAdmin,sameOrigin,isAllowedOrigin,limit,canReadOrder,orderToken,clientContext} from "./security";
 import {checkoutUrl} from "./wompi";
 import {checkoutSchema,cartQuoteSchema,loginSchema,CATEGORIES} from "../../src/shared/validation";
 import {promotionWhere,pricedProduct} from "./promotions";
 import {createOrder,applyTransaction,expireReservations,HttpError} from "./orders";
 import {verifiedTransaction} from "./wompi";
 import {createShippingQuote,readShippingToken,quotePublic} from "./shipping";
+import {simulatePayment} from "./payment-simulation";
 
 const app=express();
 app.disable("x-powered-by");
-app.set("trust proxy",config.TRUST_PROXY==="loopback"?"loopback":false);
+app.set("trust proxy",false);
 app.use(helmet({hsts:config.COOKIE_SECURE?undefined:false}));
 app.use(cors({origin(origin,callback){callback(null,!origin || isAllowedOrigin(origin));},credentials:true,methods:["GET","POST","PATCH","DELETE","OPTIONS"]}));
 app.use(cookieParser());
 app.use(sameOrigin);
-app.use(express.json({limit:"64kb",strict:true}));
+app.use(clientContext);
+app.use(express.json({limit:"64kb",strict:true,inflate:false}));
 app.use((req,res,next)=>{
   res.setHeader("Cache-Control","no-store");
   const requestId=randomUUID(); res.setHeader("X-Request-Id",requestId);
@@ -116,17 +118,19 @@ app.get("/api/orders/:id",limit("order-read",60,60),async(req,res)=>{
   const order=await db.order.findUnique({where:{id},include:{items:true,payments:{take:1,orderBy:{createdAt:"desc"}}}});
   if(!order) throw new HttpError(404,"Pedido no encontrado");
   res.json({order:{id:order.id,reference:order.reference,status:order.status,totalCents:order.totalCents,shippingCents:order.shippingCents,
-    createdAt:order.createdAt,customerName:order.customerName,shippingCity:order.shippingCity,reviewRequired:order.reviewRequired,
+    createdAt:order.createdAt,customerName:order.customerName,shippingCity:order.shippingCity,reviewRequired:order.reviewRequired,expiresAt:order.expiresAt,
+    simulated:order.payments[0]?.provider==="simulator",simulationAvailable:config.APP_ENV==="test"&&config.PAYMENT_MODE==="test"&&order.payments[0]?.provider==="simulator",
     items:order.items.map(({name,quantity,unitCents,imageUrl})=>({name,quantity,unitCents,imageUrl})),
     payment:order.payments[0]?{status:order.payments[0].status,method:order.payments[0].paymentMethod,reference:order.reference}:null}});
 });
+app.post("/api/payments/simulate",limit("payment-simulation",20,60),async(req,res)=>res.json(await simulatePayment(req.body)));
 app.post("/api/webhooks/wompi",async(req,res)=>{
   let transaction;
   try {transaction=await verifiedTransaction(req.body);} catch(error) {
     if(error instanceof ZodError || (error instanceof Error && /Checksum|firma|Propiedad|firmado|Ambiente/.test(error.message))) throw new HttpError(403,"Evento inválido");
     throw error; // Error de proveedor: 500 para que Wompi reintente.
   }
-  await applyTransaction(transaction);
+  await applyTransaction(transaction,config.PAYMENT_MODE==="wompi"?"wompi":undefined);
   res.json({received:true});
 });
 app.use("/api/admin",admin);
@@ -134,7 +138,7 @@ app.use("/api/media",express.static(path.resolve(config.UPLOAD_DIR),{dotfiles:"d
 app.use((_req,res)=>res.status(404).json({error:"Ruta no encontrada"}));
 const errors:ErrorRequestHandler=(error,_req,res,_next)=>{
   if(error instanceof ZodError) {res.status(422).json({error:error.issues[0]?.message??"Datos inválidos",issues:error.issues.map(i=>({path:i.path,message:i.message}))});return;}
-  const status=error instanceof HttpError?error.status:error.code==="P2025"?404:error.code==="P2002"?409:error.type==="entity.parse.failed"?400:error.code==="LIMIT_FILE_SIZE"?413:error.status===413?413:500;
+  const status=error instanceof HttpError?error.status:error.code==="P2025"?404:error.code==="P2002"?409:error.type==="entity.parse.failed"?400:error.type==="encoding.unsupported"?415:error.code==="LIMIT_FILE_SIZE"?413:error.status===413?413:500;
   if(status===500) console.error(JSON.stringify({error:"API_ERROR",code:error.code??"internal"}));
   res.status(status).json({error:status===500?"Error interno; inténtalo de nuevo":error instanceof HttpError?error.message:status===404?"Recurso no encontrado":status===413?"Archivo o solicitud demasiado grande":"Solicitud inválida"});
 };

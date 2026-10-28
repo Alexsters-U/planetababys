@@ -7,9 +7,13 @@ import "@fontsource/nunito-sans/800.css";
 import Header from "@/widgets/header/ui/header";
 import Footer from "@/widgets/footer/ui/footer";
 import { Providers } from "@/shared/ui/providers";
+import {indexingEnabled,publicSiteUrl} from "@/shared/seo";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
+  metadataBase:publicSiteUrl(),
+  robots:indexingEnabled()?{index:true,follow:true}:{index:false,follow:false},
+  openGraph:{type:"website",locale:"es_CO",siteName:"Planeta Baby's",title:"Planeta Baby's · Todo para su mundo todo para su bienestar",description:"Esenciales para los días en familia. Con cariño, desde Mocoa, Putumayo.",images:[{url:"/images/brand/icon-512.png",width:512,height:512}]},
   icons: {
     icon: [
       { url: "/favicon.ico?v=20261002-transparent", type: "image/x-icon", sizes: "16x16 32x32 48x48" },

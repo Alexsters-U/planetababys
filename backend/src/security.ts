@@ -4,6 +4,7 @@ import { createClient } from "redis";
 import type { Request, Response, NextFunction } from "express";
 import { db } from "./db";
 import { config } from "./config";
+import {verifiedProxyIp} from "../../src/shared/proxy-context";
 export const redis = createClient({ url: config.REDIS_URL });
 redis.on("error", () => console.error("Redis no disponible"));
 export const ADMIN_COOKIE = "pbb_admin_token";
@@ -47,7 +48,7 @@ export function sameOrigin(req:Request,res:Response,next:NextFunction) {
 export function limit(scope:string,max:number,seconds:number) {
   return async (req:Request,res:Response,next:NextFunction) => {
     try {
-      const identifier=createHash("sha256").update(`${scope}:${req.ip}`).digest("hex");
+      const identifier=createHash("sha256").update(`${scope}:${res.locals.clientIp??req.ip}`).digest("hex");
       const key=`limit:${identifier}`;
       const count=Number(await redis.eval("local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; return n",{keys:[key],arguments:[String(seconds)]}));
       if(count>max) {res.setHeader("Retry-After",String(Math.max(1,await redis.ttl(key))));res.status(429).json({error:"Demasiadas peticiones. Inténtalo en un momento."});return;}
@@ -60,5 +61,18 @@ export function orderToken(orderId:string) {
 }
 export async function canReadOrder(req:Request,id:string) {
   const token=typeof req.query.token === "string" ? req.query.token : "";
+  return validOrderToken(token,id);
+}
+export async function validOrderToken(token:string,id:string) {
   try {const {payload}=await jwtVerify(token,new TextEncoder().encode(config.SESSION_SECRET),{issuer:"planetababys-order",audience:"guest-order",algorithms:["HS256"]});return payload.orderId === id;}catch{return false;}
+}
+export function clientContext(req:Request,res:Response,next:NextFunction) {
+  const headers=new Headers();
+  for(const name of ["x-pbb-client-ip","x-pbb-proxy-time","x-pbb-proxy-signature"]){const value=req.get(name);if(value)headers.set(name,value);}
+  if([...headers.keys()].length){
+    const ip=verifiedProxyIp(config.PROXY_SHARED_SECRET,req.method,req.originalUrl,headers);
+    if(!ip){res.status(403).json({error:"Contexto de proxy inválido"});return;}
+    res.locals.clientIp=ip;
+  }
+  next();
 }

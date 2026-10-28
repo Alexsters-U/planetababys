@@ -24,7 +24,7 @@ x-backend-env: &backend-env
   STORE_CONTACT_EMAIL: ${STORE_CONTACT_EMAIL:-}
   STORE_CONTACT_PHONE: ${STORE_CONTACT_PHONE:-}
   UPLOAD_DIR: /app/uploads
-  TRUST_PROXY: "false"
+  PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:?Configura PROXY_SHARED_SECRET}
 services:
   db:
     image: postgres:16-alpine
@@ -81,6 +81,9 @@ services:
       NODE_ENV: production
       API_INTERNAL_URL: http://backend:4000
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:?Configura PROXY_SHARED_SECRET}
+      SITE_URL: ${SITE_URL:-http://localhost:3000}
+      INDEXING_ENABLED: ${INDEXING_ENABLED:-false}
     depends_on:
       backend: {condition: service_healthy}
     restart: unless-stopped

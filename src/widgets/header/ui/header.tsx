@@ -10,7 +10,7 @@ export default function Header() {
       <div className="container-page flex h-24 items-center justify-between gap-3">
         <Link href="/" className="flex items-center gap-2 sm:gap-3" aria-label="Planeta Baby's, inicio">
           <img src="/images/brand/logo-transparent.png" alt="" width={76} height={76} className="h-16 w-16 shrink-0 object-contain sm:h-[76px] sm:w-[76px]" />
-          <span className="brand-wordmark">Planeta Baby&apos;s<span className="mt-1.5 hidden text-[9px] font-bold uppercase tracking-[0.17em] text-brand-muted sm:block">Un universo de pequeños cuidados</span></span>
+          <span className="brand-wordmark">Planeta Baby&apos;s<span className="mt-1.5 hidden text-[9px] font-bold uppercase tracking-[0.12em] text-brand-muted sm:block">Todo para su mundo todo para su bienestar</span></span>
         </Link>
         <nav className="flex items-center gap-3 text-sm font-bold sm:gap-6" aria-label="Navegación principal">
           <Link href="/" className="hidden hover:text-brand-primary md:block">Inicio</Link>

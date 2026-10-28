@@ -5,7 +5,7 @@ import {PrismaClient} from "@prisma/client";
 import {readFile} from "node:fs/promises";
 const db=new PrismaClient();
 const api=process.env.TEST_API_URL??"http://localhost:4400";
-const origin="http://localhost:3100";
+const origin=process.env.SITE_URL??"http://localhost:3100";
 if(process.env.APP_ENV!=="test" || !process.env.DATABASE_URL?.includes("/planetababys_test?")) throw new Error("Solo se permiten pruebas sobre planetababys_test");
 let cookie="";
 const products:string[]=[];const orders:string[]=[];

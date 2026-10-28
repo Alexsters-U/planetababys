@@ -83,6 +83,7 @@ model Order {
 
   @@index([status])
   @@index([customerEmail])
+  @@index([status, stockReleased, expiresAt])
   @@index([createdAt])
   @@map("orders")
 }

@@ -5,7 +5,7 @@ import {db} from "../backend/src/db";
 import {dashboardSummary} from "../backend/src/analytics";
 import type {DashboardSummary} from "../src/shared/analytics";
 if(process.env.APP_ENV!=="test" || !process.env.DATABASE_URL?.includes("/planetababys_test?"))throw new Error("Solo base aislada planetababys_test");
-const api="http://localhost:4400/api",origin="http://localhost:3100",prefix="Métricas "+randomUUID().slice(0,8);
+const api=(process.env.TEST_API_URL??"http://localhost:4400")+"/api",origin=process.env.SITE_URL??"http://localhost:3100",prefix="Métricas "+randomUUID().slice(0,8);
 const orders:string[]=[],products:string[]=[],quotes:string[]=[];let cookie="";
 const now=new Date("2030-03-15T21:00:00Z");
 const customer={customerName:"Cliente Prueba",customerPhone:"3001234567",customerEmail:"metrics@example.com",shippingAddress:"Calle 12 # 5-34",shippingCity:"Mocoa",dataConsent:true,termsAccepted:true};

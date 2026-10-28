@@ -11,6 +11,8 @@ El proyecto está en desarrollo y cuenta con un entorno de validación local. La
 - Cotización de envío y aceptación del total antes del pago.
 - Integración con el checkout alojado de Wompi y confirmación de pagos desde el servidor.
 - Administración de productos, imágenes, inventario, pedidos y entregas.
+- Avisos visuales y contador de solicitudes de envío pendientes mientras el panel está abierto y visible, con consulta cada 15 segundos.
+- Desglose de pedidos con precio unitario, subtotal de productos, envío y total guardados al comprar.
 - Ventas del local en efectivo o transferencia, con cálculo de cambio e historial.
 - Montos rápidos de efectivo, registro idempotente y anulación auditada de ventas presenciales.
 - Inventario compartido entre ventas web y del local.
@@ -98,6 +100,22 @@ Las compras web utilizan Wompi como proveedor externo. La confirmación de un pa
 El registro de ventas del local documenta pagos ya recibidos en efectivo o por transferencia y actualiza el inventario compartido. Su historial permite anular una venta con motivo y devolución de unidades. La devolución del dinero se gestiona por separado.
 
 Las pruebas de pago y los registros de demostración deben permanecer separados de las operaciones reales.
+
+Las solicitudes de envío se registran al enviar el formulario. El enlace de WhatsApp prepara un mensaje que el cliente debe enviar; la aplicación no lo envía automáticamente. El panel muestra solicitudes vigentes por cotizar, un aviso al detectar nuevas y un acceso a su gestión. No utiliza WhatsApp Business, correo ni notificaciones del sistema cuando el panel está cerrado. Los avisos no recargan formularios que el administrador esté editando.
+
+Con `APP_ENV=test` y `PAYMENT_MODE=test`, la compra abre una pasarela de demostración propia, sin datos bancarios ni conexión de cobro a Wompi. Permite mostrar aprobación, rechazo y espera. Los resultados se guardan en el servidor, identificados como simulados, y el enlace requiere el token del pedido. Un resultado final no se puede reemplazar por otro; para mostrar otro caso se inicia una nueva compra. En modalidad de cotización, el administrador confirma primero envío y plazo, igual que en el recorrido comercial.
+
+Las reservas simuladas vencen a los 30 minutos y se liberan en el siguiente ciclo del trabajador. Los pagos reales se reconcilian con Wompi, admiten cinco minutos de margen y pasan a revisión ante estados inciertos o confirmaciones tardías. Un fallo del proveedor conserva la reserva para revisión sin bloquear los demás pedidos.
+
+## Proxy e indexación
+
+`PROXY_SHARED_SECRET` debe tener un valor aleatorio propio de al menos 32 caracteres, compartido exclusivamente entre Caddy, frontend y API. No debe llevar el prefijo `NEXT_PUBLIC_`. El proxy de entrada sobrescribe la IP del cliente; el frontend firma esa identidad para la API. Las cabeceras IP enviadas directamente por un navegador no se aceptan como prueba de identidad. La API permanece en la red privada y el frontend se publica solo en la interfaz local del host.
+
+El `deploy/Caddyfile` contempla Cloudflare como proxy público mediante sus rangos oficiales. No se debe usar esa misma lista sin revisar una instalación basada en Cloudflare Tunnel u otro balanceador. La configuración y su comprobación están descritas en `deploy/README.md`.
+
+`SITE_URL` define el origen de canonical y sitemap, sin rutas ni credenciales. `/robots.txt` y `/sitemap.xml` se generan desde la aplicación. Mantén `INDEXING_ENABLED=false` en el subdominio de pruebas; establece `true` únicamente en el dominio comercial definitivo con HTTPS. Las rutas privadas y la demostración de pago permanecen sin indexar.
+
+La optimización de caché de imágenes y archivos estáticos queda pendiente; esta revisión conserva su política actual.
 
 ## Pruebas
 

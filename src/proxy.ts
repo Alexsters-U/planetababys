@@ -20,6 +20,7 @@ export async function proxy(req:NextRequest) {
   response.headers.set("X-Frame-Options","DENY");
   response.headers.set("Referrer-Policy","no-referrer");
   response.headers.set("Permissions-Policy","camera=(), microphone=(), geolocation=()");
+  if(process.env.INDEXING_ENABLED!=="true" || /^\/(admin|carrito|checkout|pedido|cotizacion|pago)(\/|$)/.test(req.nextUrl.pathname))response.headers.set("X-Robots-Tag","noindex, nofollow");
   if(process.env.COOKIE_SECURE==="true") response.headers.set("Strict-Transport-Security","max-age=31536000; includeSubDomains");
   return response;
 }

@@ -12,6 +12,7 @@ import useAdminFilters from "@/shared/ui/use-admin-filters";
 import Pagination from "@/shared/ui/pagination";
 import AdminListControls from "@/shared/ui/admin-list-controls";
 import { formatCOP, formatDate } from "@/lib/money";
+import OrderTotals from "@/shared/ui/order-totals";
 import {
   orderStatusLabel,
   paymentStatusLabel,
@@ -22,7 +23,9 @@ type OrderRow = {
   reference: string;
   status: string;
   totalCents: number;
+  shippingCents:number;
   reviewRequired:boolean;
+  simulated:boolean;
   customerName: string;
   customerPhone: string;
   customerEmail: string;
@@ -161,6 +164,7 @@ export default function AdminPedidosPage() {
                   </button>
 
                   <span className="flex-1" />
+                  {order.simulated&&<span className="badge bg-amber-50 text-amber-900">Prueba · Sin cobro real</span>}
 
                   <span
                     className={
@@ -228,7 +232,7 @@ export default function AdminPedidosPage() {
                       </p>
                       {payment?.transactionId && (
                         <p className="mt-1 text-xs text-gray-400">
-                          Transacción Wompi: {payment.transactionId}
+                          {order.simulated?"Transacción de prueba":"Transacción Wompi"}: {payment.transactionId}
                         </p>
                       )}
                     </div>
@@ -239,6 +243,7 @@ export default function AdminPedidosPage() {
                           <li key={i.id} className="flex justify-between gap-3 text-gray-700">
                             <span>
                               {i.quantity}× {i.name}
+                              <small className="mt-1 block text-xs text-brand-muted">Precio unitario: {formatCOP(i.unitCents)}</small>
                             </span>
                             <span className="shrink-0">
                               {formatCOP(i.unitCents * i.quantity)}
@@ -246,10 +251,7 @@ export default function AdminPedidosPage() {
                           </li>
                         ))}
                       </ul>
-                      <p className="mt-2 flex justify-between border-t border-gray-100 pt-2 font-bold">
-                        <span>Total</span>
-                        <span>{formatCOP(order.totalCents)}</span>
-                      </p>
+                      <OrderTotals items={order.items} shippingCents={order.shippingCents} totalCents={order.totalCents} testPrefix="admin-order"/>
                     </div>
                   </div>
                 )}

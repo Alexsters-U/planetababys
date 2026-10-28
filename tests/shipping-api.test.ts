@@ -5,7 +5,7 @@ import {PrismaClient} from "@prisma/client";
 import {POLICY_VERSION,storeProfile} from "../src/shared/store-profile";
 import type {CheckoutInput} from "../src/shared/validation";
 if(process.env.APP_ENV!=="test"||!process.env.DATABASE_URL?.includes("/planetababys_test?"))throw new Error("Solo se permiten fixtures en planetababys_test");
-const db=new PrismaClient(),origin="http://localhost:3100",prefix="Envios fixture "+randomUUID();
+const db=new PrismaClient(),origin=process.env.SITE_URL??"http://localhost:3100",prefix="Envios fixture "+randomUUID();
 const productIds:string[]=[],quoteIds:string[]=[],orderIds:string[]=[];
 let cookie="";
 async function request(route:string,method="GET",body?:unknown,key?:string,admin=false){

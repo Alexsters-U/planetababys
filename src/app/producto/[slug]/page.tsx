@@ -21,6 +21,7 @@ export async function generateMetadata({
   if (!product) return { title: "Producto no encontrado" };
   return {
     title: product.name,
+    alternates:{canonical:`/producto/${encodeURIComponent(product.slug)}`},
     description: product.description.slice(0, 160),
   };
 }

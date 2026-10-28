@@ -47,12 +47,17 @@ export const productCreateSchema = productFieldsSchema.superRefine((product, ctx
     ctx.addIssue({code:"custom",path:["promotionEndsAt"],message:"La finalización debe ser posterior al inicio."});
 });
 // Partial updates are checked against the existing product inside a transaction.
-export const productUpdateSchema = productFieldsSchema.partial();
+const fields=productFieldsSchema.shape;
+export const productUpdateSchema = z.object({...fields,
+  description:fields.description.removeDefault(),stock:fields.stock.removeDefault(),category:fields.category.removeDefault(),
+  isActive:fields.isActive.removeDefault(),isFeatured:fields.isFeatured.removeDefault(),promotionEnabled:fields.promotionEnabled.removeDefault(),
+  promotionPriceCents:fields.promotionPriceCents.removeDefault(),promotionStartsAt:fields.promotionStartsAt.removeDefault(),promotionEndsAt:fields.promotionEndsAt.removeDefault(),
+}).partial();
 export type ProductCreateInput = z.infer<typeof productCreateSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export const checkoutSchema = z.object({
   shippingQuoteToken: z.string().max(1500).optional(),
-  shippingQuoteAccepted: z.literal(true, {errorMap:()=>({message:"Debes confirmar el costo del envío y el total."})}).optional(),
+  shippingQuoteAccepted: z.literal(true, {error:"Debes confirmar el costo del envío y el total."}).optional(),
   items: z.array(z.object({ productId: text(1,64), quantity: z.number().int().min(1).max(50), expectedUnitCents: z.number().int().min(100).max(2_000_000_000).optional() }).strict()).min(1).max(30)
     .refine(items => new Set(items.map(i => i.productId)).size === items.length, "Productos duplicados en el carrito"),
   customer: z.object({
@@ -66,8 +71,8 @@ export const checkoutSchema = z.object({
       .refine(v => v !== "Otra ciudad", "Escribe el nombre de la ciudad"),
     notes: text(0,300).optional(),
   }).strict(),
-  dataConsent: z.literal(true, { errorMap: () => ({ message: "Debes aceptar la Política de Privacidad y Tratamiento de Datos Personales" }) }),
-  termsAccepted: z.literal(true, { errorMap: () => ({ message: "Debes aceptar los términos y condiciones" }) }),
+  dataConsent: z.literal(true, {error:"Debes aceptar la Política de Privacidad y Tratamiento de Datos Personales"}),
+  termsAccepted: z.literal(true, {error:"Debes aceptar los términos y condiciones"}),
 }).strict();
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export const cartQuoteSchema = z.object({items: checkoutSchema.shape.items}).strict();

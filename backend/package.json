@@ -1,17 +1,30 @@
 {
-  "name": "@planetababys/api", "version": "2.0.0", "private": true,
+  "name": "@planetababys/api",
+  "version": "2.0.0",
+  "private": true,
   "scripts": {
     "dev": "tsx watch --env-file=../.env src/server.ts",
     "build": "esbuild src/server.ts --bundle --platform=node --target=node22 --outfile=dist/server.cjs --external:@prisma/client --external:sharp",
     "start": "node dist/server.cjs"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3", "bcryptjs": "^2.4.3", "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5", "express": "^5.1.0", "helmet": "^8.1.0", "jose": "^5.9.6",
-    "multer": "^2.0.2", "redis": "^5.9.0", "sharp": "^0.34.5", "zod": "^3.24.1"
+    "@prisma/client": "6.19.3",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "jose": "^5.9.6",
+    "multer": "^2.5.0",
+    "redis": "^5.9.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.9", "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.5", "@types/multer": "^2.0.0", "esbuild": "^0.25.12"
+    "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/multer": "^2.0.0",
+    "esbuild": "^0.25.12"
   }
 }

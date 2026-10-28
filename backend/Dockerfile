@@ -14,6 +14,7 @@ COPY src/shared/promotions.ts ./src/shared/promotions.ts
 COPY src/shared/analytics.ts ./src/shared/analytics.ts
 COPY src/shared/store-profile.ts ./src/shared/store-profile.ts
 COPY src/shared/store-sales.ts ./src/shared/store-sales.ts
+COPY src/shared/proxy-context.ts ./src/shared/proxy-context.ts
 COPY scripts ./scripts
 RUN pnpm build:api && pnpm --filter @planetababys/api deploy --legacy --prod /out
 RUN for destination in /out/node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client; do cp -R node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/. "$destination"; done

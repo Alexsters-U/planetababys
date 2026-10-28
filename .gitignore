@@ -30,6 +30,21 @@ id_rsa
 id_ed25519
 .npmrc.local
 .npmrc.private
+.npmrc
+.git-credentials
+.netrc
+_netrc
+.pypirc
+*.keystore
+*.kdbx
+
+# Ajustes privados del despliegue local; las plantillas se publican por separado
+docker-compose.override.y*ml
+docker-compose.local.y*ml
+compose.override.y*ml
+compose.local.y*ml
+/deploy/Caddyfile.local
+/deploy/Caddyfile.private
 
 # Datos persistentes, archivos subidos y respaldos
 uploads/
@@ -45,6 +60,13 @@ backups/
 *.sql.bz2
 dump.rdb
 appendonly.aof*
+# Exportaciones sueltas del directorio raíz; las migraciones de Prisma se conservan
+/*.sql
+/*.tar
+/*.tar.gz
+/*.tgz
+/*.zip
+/*.7z
 
 # Documentacion interna, evidencias y originales privados
 /docs/obsidian/

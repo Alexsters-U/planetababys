@@ -4,7 +4,7 @@ import {randomUUID,createHash} from "node:crypto";
 import {PrismaClient} from "@prisma/client";
 const db=new PrismaClient();
 if(process.env.APP_ENV!=="test" || !process.env.DATABASE_URL?.includes("/planetababys_test?"))throw new Error("Solo base aislada planetababys_test");
-const api="http://localhost:4400/api",origin="http://localhost:3100",prefix="Promoción API "+randomUUID().slice(0,8);
+const api=(process.env.TEST_API_URL??"http://localhost:4400")+"/api",origin=process.env.SITE_URL??"http://localhost:3100",prefix="Promoción API "+randomUUID().slice(0,8);
 let cookie="";const products:string[]=[],orders:string[]=[];
 async function request(route:string,method="GET",body?:unknown,headers:Record<string,string>={}){
   return fetch(api+route,{method,headers:{Origin:origin,"Content-Type":"application/json",...(cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});

@@ -9,12 +9,12 @@ export const storeSaleSchema=z.object({
   cashReceivedCents:z.number().int().min(100).max(2_000_000_000).optional(),
   paymentReference:safeText(100).optional(),
   notes:safeText(300).default(""),
-  paymentConfirmed:z.literal(true,{errorMap:()=>({message:"Confirma que recibiste el pago y entregaste los productos."})}),
+  paymentConfirmed:z.literal(true,{error:"Confirma que recibiste el pago y entregaste los productos."}),
 }).strict().superRefine((sale,ctx)=>{
   if(sale.paymentMethod==="TRANSFER"&&sale.cashReceivedCents!==undefined)ctx.addIssue({code:"custom",path:["cashReceivedCents"],message:"El efectivo recibido solo aplica a pagos en efectivo."});
   if(sale.paymentMethod==="CASH"&&sale.paymentReference)ctx.addIssue({code:"custom",path:["paymentReference"],message:"La referencia solo aplica a transferencias."});
 });
-export const voidStoreSaleSchema=z.object({reason:safeText(300).refine(value=>value.length>=5,"Explica el motivo de la anulación (mínimo 5 caracteres)."),returnToStock:z.literal(true,{errorMap:()=>({message:"Confirma que los productos vuelven al inventario."})})}).strict();
+export const voidStoreSaleSchema=z.object({reason:safeText(300).refine(value=>value.length>=5,"Explica el motivo de la anulación (mínimo 5 caracteres)."),returnToStock:z.literal(true,{error:"Confirma que los productos vuelven al inventario."})}).strict();
 export type StoreSaleInput=z.infer<typeof storeSaleSchema>;
 export type StoreSaleView={
   id:string;reference:string;status:"COMPLETED"|"VOIDED";paymentMethod:"CASH"|"TRANSFER";totalCents:number;

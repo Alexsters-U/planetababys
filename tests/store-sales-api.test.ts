@@ -5,12 +5,12 @@ import {PrismaClient} from "@prisma/client";
 import type {StoreSaleInput,StoreSaleList,StoreSaleView} from "../src/shared/store-sales";
 import type {DashboardSummary} from "../src/shared/analytics";
 if(process.env.APP_ENV!=="test"||!process.env.DATABASE_URL?.includes("/planetababys_test?"))throw Error("Solo se permiten pruebas en planetababys_test");
-const db=new PrismaClient(),api=process.env.TEST_API_URL??"http://localhost:4400",origin="http://localhost:3100",prefix="Local fixture "+randomUUID();
+const db=new PrismaClient(),api=process.env.TEST_API_URL??"http://localhost:4400",origin=process.env.SITE_URL??"http://localhost:3100",prefix="Local fixture "+randomUUID();
 const products:string[]=[],sales:string[]=[],orders:string[]=[],quotes:string[]=[];let cookie="";
 async function request(route:string,method="GET",body?:unknown,key?:string,auth=true,otherHeaders:Record<string,string>={}){
   const init={method,headers:{Origin:origin,"Content-Type":"application/json",...(auth?{Cookie:cookie}:{}),...(key?{"Idempotency-Key":key}:{}),...otherHeaders},body:body===undefined?undefined:JSON.stringify(body)};
   let response=await fetch(api+"/api"+route,init);
-  if(response.status===429){await new Promise(resolve=>setTimeout(resolve,(Number(response.headers.get("retry-after"))||60)*1000+200));response=await fetch(api+"/api"+route,init);}
+  for(let attempt=0;response.status===429&&attempt<3;attempt++){await new Promise(resolve=>setTimeout(resolve,(Number(response.headers.get("retry-after"))||60)*1000+1100));response=await fetch(api+"/api"+route,init);}
   return response;
 }
 async function product(stock=10,patch:Record<string,unknown>={}){const p=await db.product.create({data:{name:prefix,slug:randomUUID(),priceCents:1250050,stock,...patch}});products.push(p.id);return p;}

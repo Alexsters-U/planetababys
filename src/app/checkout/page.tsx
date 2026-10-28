@@ -129,6 +129,7 @@ export default function CheckoutPage() {
   return (
     <div className="container-page py-10">
       <h1 className="section-title">Finalizar compra</h1>
+      {testMode&&<p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="note"><strong>Entorno de demostración.</strong> Utiliza datos de prueba. No se realizan cobros reales.</p>}
       <p className="mt-1 text-gray-600">
         Compra como invitado. Solo te pedimos los datos necesarios para
         entregarte el pedido.

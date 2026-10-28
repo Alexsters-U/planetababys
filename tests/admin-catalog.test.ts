@@ -9,7 +9,7 @@ import { db as securityDb } from "../backend/src/db";
 
 if (process.env.APP_ENV !== "test" || !process.env.DATABASE_URL?.includes("/planetababys_test?")) throw new Error("Se requiere la base aislada planetababys_test");
 const db = new PrismaClient();
-const host = "http://localhost:3100";
+const host = process.env.SITE_URL??"http://localhost:3100";
 const prefix = "paginacion-" + randomUUID();
 const ids = Array.from({ length: 325 }, () => randomUUID());
 const orderIds = Array.from({ length: 31 }, () => randomUUID());
@@ -90,7 +90,7 @@ test("Pedidos: búsqueda, estado y paginación en servidor", async () => {
   assert.equal((await request("/admin/orders?status=INVALID")).status, 422);
 });
 test("Origen local: localhost, 127.0.0.1 y IPv6; sitios externos y otros puertos bloqueados", async () => {
-  for (const origin of [host, "http://127.0.0.1:3100", "http://[::1]:3100"]) {
+  for (const origin of [host, `http://127.0.0.1:${new URL(host).port}`, `http://[::1]:${new URL(host).port}`]) {
     assert.ok(isAllowedOrigin(origin));
     assert.equal((await request("/auth/logout", "POST", undefined, { Origin: origin, Cookie: "" })).status, 200);
   }
@@ -99,13 +99,13 @@ test("Origen local: localhost, 127.0.0.1 y IPv6; sitios externos y otros puertos
   }
   assert.equal((await request("/auth/logout", "POST", undefined, { "Sec-Fetch-Site": "cross-site", Cookie: "" })).status, 403);
   const denied = await request("/auth/logout", "POST", undefined, { Origin: "http://localhost:3000", Cookie: "" });
-  assert.match((await denied.json()).error, /http:\/\/localhost:3100/);
+  assert.ok((await denied.json()).error.includes(host));
   const previous = config.APP_ENV;
   try { config.APP_ENV = "production"; assert.ok(isAllowedOrigin(host)); assert.equal(isAllowedOrigin("http://127.0.0.1:3100"), false); }
   finally { config.APP_ENV = previous; }
 });
 test("Login real por proxy desde 127.0.0.1: cookie y acceso autenticado", async () => {
-  const alias = "http://127.0.0.1:3100";
+  const alias = host.replace("localhost","127.0.0.1");
   const response = await fetch(alias + "/api/auth/login", { method: "POST", headers: { Origin: alias, "Content-Type": "application/json" }, body: JSON.stringify({ email: "test@admin.com", password: "password" }) });
   assert.equal(response.status, 200);
   const token = response.headers.get("set-cookie")!.split(";")[0];
