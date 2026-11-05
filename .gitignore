@@ -97,3 +97,6 @@ coverage/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Archivos de ejemplo generados por el asistente
+/Claude outputs/

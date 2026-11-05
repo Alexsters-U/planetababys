@@ -10,11 +10,13 @@ import path from "node:path";
 import {ZodError,z} from "zod";
 import {config} from "./config";
 import {db,serializable} from "./db";
-import {ADMIN_COOKIE,cookieOptions,redis,signSession,readSession,requireAdmin,sameOrigin,isAllowedOrigin,limit,canReadOrder,orderToken,clientContext} from "./security";
+import {ADMIN_COOKIE,cookieOptions,redis,signSession,readSession,requireAdmin,sameOrigin,isAllowedOrigin,limit,canReadOrder,orderToken,clientContext,loginLockSeconds,recordLoginFailure,clearLoginFailures,fingerprint} from "./security";
+import {cachedCatalog} from "./cache";
+import {runMaintenance} from "./maintenance";
 import {checkoutUrl} from "./wompi";
 import {checkoutSchema,cartQuoteSchema,loginSchema,CATEGORIES} from "../../src/shared/validation";
 import {promotionWhere,pricedProduct} from "./promotions";
-import {createOrder,applyTransaction,expireReservations,HttpError} from "./orders";
+import {createOrder,applyTransaction,HttpError} from "./orders";
 import {verifiedTransaction} from "./wompi";
 import {createShippingQuote,readShippingToken,quotePublic} from "./shipping";
 import {simulatePayment} from "./payment-simulation";
@@ -38,6 +40,8 @@ app.use((req,res,next)=>{
 app.get("/api/health",async(_req,res)=>{
   await db.$queryRaw`SELECT 1`; await redis.ping(); res.json({status:"ok"});
 });
+// Comprobación de despliegue: indica si la cadena proxy → Next → API entrega una IP firmada, sin revelarla.
+app.get("/api/health/proxy",(_req,res)=>res.json({clientIpVerified:Boolean(res.locals.clientIp)}));
 app.get("/api/store/config",(_req,res)=>res.json({
   shippingCents:config.SHIPPING_MODE==="quote"?null:config.SHIPPING_CENTS,shippingMode:config.SHIPPING_MODE,shippingConfigured:config.SHIPPING_CONFIGURED,
   coverage:config.SHIPPING_ALLOWED_CITIES,paymentMode:config.PAYMENT_MODE,
@@ -62,17 +66,23 @@ app.get("/api/shipping/quotes/:id",limit("shipping-read",60,60),async(req,res)=>
 app.get("/api/products",limit("catalog",120,60),async(req,res)=>{
   const query=z.object({q:z.string().max(100).optional(),category:z.enum(CATEGORIES).optional(),
     featured:z.enum(["true","false"]).optional(),promotions:z.enum(["true","false"]).optional(),page:z.coerce.number().int().min(1).default(1),limit:z.coerce.number().int().min(1).max(48).default(24)}).parse(req.query);
-  const now=new Date();
-  const where={isActive:true,...(query.category?{category:query.category}:{}),...(query.featured==="true"?{isFeatured:true}:{}),
-    ...(query.q?{OR:[{name:{contains:query.q,mode:"insensitive" as const}},{description:{contains:query.q,mode:"insensitive" as const}}]}:{}),
-    ...(query.promotions==="true"?{AND:[promotionWhere("active",now)]}:{})};
-  const [products,total]=await Promise.all([db.product.findMany({where,include:{images:{orderBy:{sort:"asc"}}},orderBy:{createdAt:"desc"},take:query.limit,skip:(query.page-1)*query.limit}),db.product.count({where})]);
-  res.json({products:products.map(p=>pricedProduct(p,now)),total,page:query.page,pages:Math.ceil(total/query.limit)});
+  res.json(await cachedCatalog("list:"+JSON.stringify(query),async()=>{
+    const now=new Date();
+    const where={isActive:true,...(query.category?{category:query.category}:{}),...(query.featured==="true"?{isFeatured:true}:{}),
+      ...(query.q?{OR:[{name:{contains:query.q,mode:"insensitive" as const}},{description:{contains:query.q,mode:"insensitive" as const}}]}:{}),
+      ...(query.promotions==="true"?{AND:[promotionWhere("active",now)]}:{})};
+    const [products,total]=await Promise.all([db.product.findMany({where,include:{images:{orderBy:{sort:"asc"}}},orderBy:[{createdAt:"desc"},{id:"desc"}],take:query.limit,skip:(query.page-1)*query.limit}),db.product.count({where})]);
+    return {products:products.map(p=>pricedProduct(p,now)),total,page:query.page,pages:Math.ceil(total/query.limit)};
+  }));
 });
-app.get("/api/products/:slug",async(req,res)=>{
-  const product=await db.product.findUnique({where:{slug:String(req.params.slug)},include:{images:{orderBy:{sort:"asc"}}}});
-  if(!product?.isActive) throw new HttpError(404,"Producto no encontrado");
-  res.json({product:pricedProduct(product,new Date())});
+app.get("/api/products/:slug",limit("catalog-item",240,60),async(req,res)=>{
+  const slug=z.string().min(1).max(120).parse(String(req.params.slug));
+  const product=await cachedCatalog("item:"+slug,async()=>{
+    const found=await db.product.findUnique({where:{slug},include:{images:{orderBy:{sort:"asc"}}}});
+    return found?.isActive?pricedProduct(found,new Date()):null;
+  });
+  if(!product) throw new HttpError(404,"Producto no encontrado");
+  res.json({product});
 });
 app.post("/api/cart/quote",limit("quote",60,60),async(req,res)=>{
   const input=cartQuoteSchema.parse(req.body);
@@ -91,10 +101,21 @@ app.post("/api/cart/quote",limit("quote",60,60),async(req,res)=>{
 });
 app.post("/api/auth/login",limit("login",5,60),async(req,res)=>{
   const input=loginSchema.parse(req.body);
+  const locked=await loginLockSeconds(input.email);
+  if(locked){res.setHeader("Retry-After",String(locked));throw new HttpError(429,"Demasiados intentos para esta cuenta. Inténtalo más tarde.");}
   const user=await db.adminUser.findUnique({where:{email:input.email}});
   // Comparación incluso sin usuario: reduce diferencia temporal de enumeración.
-  const valid=await bcrypt.compare(input.password,user?.passwordHash??"$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
-  if(!user || !valid) throw new HttpError(401,"Credenciales inválidas");
+  const valid=await bcrypt.compare(input.password,user?.passwordHash??"$2a$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy");
+  if(!user || !valid) {
+    await recordLoginFailure(input.email);
+    // Sin contraseña ni correo en claro: huellas para correlacionar intentos.
+    await db.auditLog.create({data:{adminId:user?.id??null,action:"LOGIN_FAILED",entity:"AdminUser",entityId:user?.id??null,
+      detail:{account:fingerprint(input.email.trim().toLowerCase()),client:fingerprint(String(res.locals.clientIp??req.ip)),knownAccount:Boolean(user)}}});
+    throw new HttpError(401,"Credenciales inválidas");
+  }
+  await clearLoginFailures(input.email);
+  // Actualiza hashes antiguos al costo vigente sin pedir cambio de contraseña.
+  if(bcrypt.getRounds(user.passwordHash)<12) await db.adminUser.update({where:{id:user.id},data:{passwordHash:await bcrypt.hash(input.password,12)}});
   await db.auditLog.create({data:{adminId:user.id,action:"LOGIN",entity:"AdminUser",entityId:user.id}});
   res.cookie(ADMIN_COOKIE,await signSession(user),cookieOptions).json({user:{id:user.id,email:user.email}});
 });
@@ -147,7 +168,7 @@ async function main() {
   await db.$connect(); await redis.connect(); await mkdir(config.UPLOAD_DIR,{recursive:true});
   const server=app.listen(config.API_PORT,"0.0.0.0",()=>console.log(`API disponible en puerto ${config.API_PORT}`));
   let workerBusy=false;
-  const timer=setInterval(async()=>{if(workerBusy)return;workerBusy=true;try{await expireReservations();}catch{console.error("No se pudo reconciliar reservas");}finally{workerBusy=false;}},60000);
+  const timer=setInterval(async()=>{if(workerBusy)return;workerBusy=true;try{await runMaintenance();}catch{console.error("No se pudo ejecutar el mantenimiento programado");}finally{workerBusy=false;}},60000);
   timer.unref();
   for(const signal of ["SIGTERM","SIGINT"]) process.on(signal,()=>{
     clearInterval(timer);server.close(async()=>{await db.$disconnect();await redis.quit();process.exit(0);});

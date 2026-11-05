@@ -35,6 +35,8 @@ model Product {
   @@index([category])
   @@index([isActive])
   @@index([isActive, promotionEnabled, promotionEndsAt])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_description_trgm_idx")
   @@map("products")
 }
 
@@ -74,6 +76,9 @@ model Order {
   stockReleased  Boolean     @default(false)
   expiresAt      DateTime?
   reviewRequired Boolean     @default(false)
+  /// Reintentos de conciliación con espera exponencial; evita que un pedido fallido bloquee a los demás.
+  reconcileAttempts Int      @default(0)
+  nextReconcileAt   DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   items          OrderItem[]
@@ -84,6 +89,7 @@ model Order {
   @@index([status])
   @@index([customerEmail])
   @@index([status, stockReleased, expiresAt])
+  @@index([status, stockReleased, nextReconcileAt])
   @@index([createdAt])
   @@map("orders")
 }
@@ -151,12 +157,14 @@ model Payment {
   currency       String        @default("COP")
   paymentMethod  String?       /// CARD, NEQUI, PSE, BANCOLOMBIA...
   wompiData      Json?         /// Solo campos técnicos permitidos, nunca payload crudo
+  approvedAt     DateTime?     /// Se fija una sola vez al aprobar; fecha de venta en panel y reportes
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   @@index([orderId])
   @@index([status])
   @@index([status, updatedAt, orderId])
+  @@index([status, approvedAt, orderId])
   @@map("payments")
 }
 

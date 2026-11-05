@@ -9,6 +9,7 @@ import {getProductPricing} from "../../src/shared/promotions";
 import {HttpError} from "./errors";
 import {consumeShippingQuote} from "./shipping";
 import {POLICY_VERSION} from "../../src/shared/store-profile";
+import {invalidateCatalog,invalidateSales} from "./cache";
 export {HttpError} from "./errors";
 export async function createOrder(input:CheckoutInput,key:string) {
   const hash=createHash("sha256").update(JSON.stringify(input)).digest("hex");
@@ -55,6 +56,7 @@ export async function createOrder(input:CheckoutInput,key:string) {
     }
     throw error;
   });
+  await invalidateCatalog();
   const token=await orderToken(order.id);
   return {orderId:order.id,reference:order.reference,totalCents:order.totalCents,shippingCents:order.shippingCents,
     paymentUrl:checkoutUrl(order,token),orderToken:token,paymentMode:config.PAYMENT_MODE};
@@ -65,6 +67,12 @@ async function releaseStock(tx:Prisma.TransactionClient,order:{id:string;stockRe
   for(const item of order.items) await tx.product.updateMany({where:{id:item.productId},data:{stock:{increment:item.quantity}}});
 }
 export async function applyTransaction(transaction:Transaction,expectedProvider?:string) {
+  const result=await applyTransactionInTx(transaction,expectedProvider);
+  if(result.applied && transaction.status!=="PENDING" && transaction.status!=="APPROVED") await invalidateCatalog();
+  else if(result.applied || result.review) await invalidateSales();
+  return result;
+}
+function applyTransactionInTx(transaction:Transaction,expectedProvider?:string):Promise<{applied:boolean;review?:boolean}> {
   return serializable(async tx=>{
     const found=await tx.order.findUnique({where:{reference:transaction.reference},select:{id:true}});
     if(!found) return {applied:false};
@@ -87,6 +95,7 @@ export async function applyTransaction(transaction:Transaction,expectedProvider?
     if(expectedProvider==="simulator" && order.status!=="PENDING")throw new HttpError(409,"Esta compra de prueba ya terminó.");
     await tx.payment.update({where:{id:payment.id},data:{
       transactionId:transaction.id,status:transaction.status,paymentMethod:transaction.payment_method_type??null,
+      ...(transaction.status==="APPROVED"?{approvedAt:new Date()}:{}),
       wompiData:{id:transaction.id,status:transaction.status,amount_in_cents:transaction.amount_in_cents,currency:"COP"},
     }});
     if(transaction.status==="APPROVED") await tx.order.update({where:{id:order.id},data:{status:"PAID",reviewRequired:order.stockReleased}});
@@ -97,9 +106,14 @@ export async function applyTransaction(transaction:Transaction,expectedProvider?
     return {applied:true};
   });
 }
+// Espera exponencial: 1, 2, 4… minutos, con techo de una hora.
+const RECONCILE_MAX_WAIT_MS=60*60000;
 export async function expireReservations(options:{now?:Date;read?:typeof readTransaction;orderIds?:string[]}={}) {
   const now=options.now??new Date();
-  const old=await db.order.findMany({where:{status:"PENDING",stockReleased:false,expiresAt:{lte:now},...(options.orderIds?{id:{in:options.orderIds}}:{})},include:{payments:true},orderBy:{expiresAt:"asc"},take:25});
+  // Los pedidos con fallos recientes esperan su turno: no ocupan los 25 cupos del ciclo y no bloquean a los demás.
+  const old=await db.order.findMany({where:{status:"PENDING",stockReleased:false,expiresAt:{lte:now},OR:[{nextReconcileAt:null},{nextReconcileAt:{lte:now}}],...(options.orderIds?{id:{in:options.orderIds}}:{})},
+    include:{payments:true},orderBy:[{reconcileAttempts:"asc"},{expiresAt:"asc"}],take:25});
+  let released=false;
   for(const candidate of old) {
     try {
     const payment=candidate.payments[0],id=payment?.transactionId;
@@ -107,7 +121,7 @@ export async function expireReservations(options:{now?:Date;read?:typeof readTra
     const gracePassed=Boolean(candidate.expiresAt && candidate.expiresAt.getTime()+5*60*1000<=now.getTime());
     if(!simulated){
       // Un pago con transacción conocida se consulta antes de liberar.
-      if(config.PAYMENT_MODE!=="wompi"){await db.order.update({where:{id:candidate.id},data:{reviewRequired:true}});continue;}
+      if(config.PAYMENT_MODE!=="wompi"){await db.order.update({where:{id:candidate.id},data:{reviewRequired:true,reconcileAttempts:{increment:1},nextReconcileAt:new Date(now.getTime()+RECONCILE_MAX_WAIT_MS)}});continue;}
       if(id){
         const canonical=await (options.read??readTransaction)(id);
         if(canonical.reference!==candidate.reference)throw new Error("Referencia de pago inconsistente");
@@ -123,13 +137,16 @@ export async function expireReservations(options:{now?:Date;read?:typeof readTra
       if(order.status!=="PENDING" || order.stockReleased || !order.expiresAt || order.expiresAt>now || current?.status!=="PENDING")return;
       // Si llegó un webhook durante la consulta, reconciliarlo en el siguiente ciclo.
       if(current.transactionId!==payment?.transactionId)return;
-      await releaseStock(tx,order);
+      await releaseStock(tx,order);released=true;
       if(simulated)await tx.payment.update({where:{id:current.id},data:{status:"VOIDED"}});
       await tx.order.update({where:{id:order.id},data:{status:"CANCELLED",reviewRequired:!simulated}});
     });
     }catch{
       console.error(JSON.stringify({error:"RESERVATION_RECONCILIATION_FAILED",orderId:candidate.id}));
-      await db.order.updateMany({where:{id:candidate.id,status:"PENDING"},data:{reviewRequired:true}}).catch(()=>{});
+      const wait=Math.min(RECONCILE_MAX_WAIT_MS,60000*2**Math.min(candidate.reconcileAttempts,6));
+      await db.order.updateMany({where:{id:candidate.id,status:"PENDING"},data:{reviewRequired:true,reconcileAttempts:{increment:1},nextReconcileAt:new Date(now.getTime()+wait)}}).catch(()=>{});
     }
   }
+  if(released) await invalidateCatalog();
+  else if(old.length) await invalidateSales();
 }

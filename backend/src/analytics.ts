@@ -4,9 +4,10 @@ import {config} from "./config";
 import {dashboardWindow,fillSalesDays,type DashboardDays,type DashboardSummary} from "../../src/shared/analytics";
 import {promotionWhere} from "./promotions";
 
-const eligible=Prisma.sql`
+// Criterio único de venta confirmada; el reporte en Excel lo reutiliza para coincidir con el panel.
+export const eligible=Prisma.sql`
   WITH confirmed AS (
-    SELECT "orderId", MIN("updatedAt") AS paid_at FROM payments
+    SELECT "orderId", MIN(COALESCE("approvedAt","updatedAt")) AS paid_at FROM payments
     WHERE status = 'APPROVED' GROUP BY "orderId"
   ), eligible AS (
     SELECT o.id, o."totalCents" - o."shippingCents" AS sales_cents, c.paid_at, 'WEB' AS channel
@@ -46,7 +47,7 @@ export async function dashboardSummary(days:DashboardDays,now=new Date()):Promis
     const created={createdAt:{gte:start,lt:end}};
     const placedOrders=await tx.order.count({where:created});
     const previousPlacedOrders=await tx.order.count({where:{createdAt:{gte:previousStart,lt:previousEnd}}});
-    const confirmedCohort=await tx.order.count({where:{...created,status:{in:["PAID","PACKED","SHIPPED","DELIVERED"]},reviewRequired:false,payments:{some:{status:"APPROVED",updatedAt:{lt:end}}}}});
+    const confirmedCohort=await tx.order.count({where:{...created,status:{in:["PAID","PACKED","SHIPPED","DELIVERED"]},reviewRequired:false,payments:{some:{status:"APPROVED",OR:[{approvedAt:{lt:end}},{approvedAt:null,updatedAt:{lt:end}}]}}}});
     const statuses=await tx.order.groupBy({by:["status"],where:created,_count:{_all:true},orderBy:{status:"asc"}});
     const productCount=await tx.product.count(),orderCount=await tx.order.count();
     const pendingOrders=await tx.order.count({where:{status:"PENDING"}});

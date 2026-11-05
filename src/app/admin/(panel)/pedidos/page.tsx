@@ -208,6 +208,7 @@ export default function AdminPedidosPage() {
                 </div>
 
                 {order.reviewRequired && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Pago en revisión. No despachar: verifica la transacción y la disponibilidad antes de resolver el caso.</p>}
+                <a href={`/api/admin/orders/${encodeURIComponent(order.id)}/sheet.pdf`} target="_blank" rel="noopener" className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-brand-primary underline" data-testid="order-sheet-pdf">Hoja de pedido para despacho (PDF)</a>
                 {isOpen && (
                   <div className="mt-4 grid gap-6 border-t border-gray-100 pt-4 sm:grid-cols-2">
                     <div className="text-sm">

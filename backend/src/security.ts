@@ -3,7 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { createClient } from "redis";
 import type { Request, Response, NextFunction } from "express";
 import { db } from "./db";
-import { config } from "./config";
+import { config, proxyIpRequired } from "./config";
 import {verifiedProxyIp} from "../../src/shared/proxy-context";
 export const redis = createClient({ url: config.REDIS_URL });
 redis.on("error", () => console.error("Redis no disponible"));
@@ -45,8 +45,14 @@ export function sameOrigin(req:Request,res:Response,next:NextFunction) {
   }
   next();
 }
+let missingProxyLoggedAt=0;
 export function limit(scope:string,max:number,seconds:number) {
   return async (req:Request,res:Response,next:NextFunction) => {
+    if(proxyIpRequired && !res.locals.clientIp) {
+      // Falla cerrada y visible: sin IP firmada todos los clientes compartirían un contador.
+      if(Date.now()-missingProxyLoggedAt>60000){missingProxyLoggedAt=Date.now();console.error(JSON.stringify({error:"PROXY_CONTEXT_MISSING",scope,path:req.path}));}
+      res.status(503).json({error:"La tienda no está disponible en este momento. Inténtalo de nuevo más tarde."});return;
+    }
     try {
       const identifier=createHash("sha256").update(`${scope}:${res.locals.clientIp??req.ip}`).digest("hex");
       const key=`limit:${identifier}`;
@@ -76,3 +82,17 @@ export function clientContext(req:Request,res:Response,next:NextFunction) {
   }
   next();
 }
+
+// Bloqueo por cuenta: complementa el límite por IP frente a intentos distribuidos.
+const LOGIN_FAILURES=10,LOGIN_WINDOW_SECONDS=15*60;
+const accountKey=(email:string)=>"login-fail:"+createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+export async function loginLockSeconds(email:string) {
+  const key=accountKey(email),count=Number(await redis.get(key)??0);
+  return count>=LOGIN_FAILURES?Math.max(1,await redis.ttl(key)):0;
+}
+export async function recordLoginFailure(email:string) {
+  const key=accountKey(email);
+  await redis.eval("local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end; return n",{keys:[key],arguments:[String(LOGIN_WINDOW_SECONDS)]});
+}
+export async function clearLoginFailures(email:string) {await redis.del(accountKey(email));}
+export const fingerprint=(value:string)=>createHash("sha256").update(value).digest("hex").slice(0,16);

@@ -24,7 +24,13 @@ export const config = z.object({
   STORE_CONTACT_EMAIL: z.string().email().or(z.literal("")).default(""),
   STORE_CONTACT_PHONE: z.string().default(""),
   PROXY_SHARED_SECRET: z.string().min(32).or(z.literal("")).default(""),
+  // En producción la IP del cliente debe llegar firmada por el proxy; sin ella los límites serían globales.
+  // Compose entrega la variable vacía cuando no se define: vacío equivale a «usar el valor por defecto».
+  PROXY_IP_REQUIRED: z.preprocess(value=>value===""?undefined:value,boolean.optional()),
+  CATALOG_CACHE_SECONDS: z.coerce.number().int().min(0).max(300).default(30),
+  UPLOAD_CLEANUP_HOURS: z.coerce.number().int().min(1).max(24*30).default(24),
 }).parse(process.env);
+export const proxyIpRequired=config.PROXY_IP_REQUIRED??config.APP_ENV==="production";
 // An unavailable API or an empty local env must not erase confirmed public details.
 config.STORE_LEGAL_NAME ||= storeProfile.name;
 config.STORE_TAX_ID ||= storeProfile.taxId;

@@ -4,6 +4,9 @@ import {Prisma} from "@prisma/client";
 import {z} from "zod";
 import {db,serializable} from "./db";
 import {HttpError} from "./errors";
+import {invalidateCatalog} from "./cache";
+import {limit} from "./security";
+import {buildStoreSaleReceipt} from "./report-pdf";
 import {getProductPricing} from "../../src/shared/promotions";
 import {storeSaleSchema,voidStoreSaleSchema,type StoreSaleInput} from "../../src/shared/store-sales";
 
@@ -83,8 +86,15 @@ storeSales.get("/",async(req,res)=>{
 });
 storeSales.post("/",async(req,res)=>{
   const input=storeSaleSchema.parse(req.body),key=z.string().uuid().parse(req.headers["idempotency-key"]);
-  const result=await recordStoreSale(input,key,res.locals.admin.id);res.status(result.replayed?200:201).json(result);
+  const result=await recordStoreSale(input,key,res.locals.admin.id);if(!result.replayed)await invalidateCatalog();res.status(result.replayed?200:201).json(result);
+});
+storeSales.get("/:id/receipt.pdf",limit("admin-document",60,60),async(req,res)=>{
+  const receipt=await buildStoreSaleReceipt(z.string().min(1).max(64).parse(String(req.params.id)));
+  res.setHeader("Content-Type","application/pdf");
+  res.setHeader("Content-Disposition",`inline; filename="${receipt.fileName.replace(/[^A-Za-z0-9._-]/g,"_")}"`);
+  res.setHeader("X-Content-Type-Options","nosniff");
+  res.send(receipt.buffer);
 });
 storeSales.post("/:id/void",async(req,res)=>{
-  const input=voidStoreSaleSchema.parse(req.body);res.json(await voidStoreSale(String(req.params.id),input.reason,res.locals.admin.id));
+  const input=voidStoreSaleSchema.parse(req.body);const result=await voidStoreSale(String(req.params.id),input.reason,res.locals.admin.id);if(!result.replayed)await invalidateCatalog();res.json(result);
 });

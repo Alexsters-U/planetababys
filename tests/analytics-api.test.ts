@@ -47,7 +47,7 @@ test("Agregados verifican snapshots, envío, pagos duplicados, revisión y lími
 });
 test("Filtros operativos coinciden con conteos globales y excluyen productos ocultos",async()=>{
   await product(3);await product(0);await product(2,false);await product(0,false);
-  const summary:DashboardSummary=await (await request("/admin/summary")).json();
+  const summary:DashboardSummary=await (await request("/admin/summary?fresh=1")).json();
   for(const [query,count] of [["stock=low&visibility=visible",summary.inventory.lowStock],["stock=empty&visibility=visible",summary.inventory.outOfStock],["promotion=active&visibility=visible",summary.inventory.activePromotions]] as const){const data=await (await request("/admin/products?"+query)).json();assert.equal(data.total,count);}
   const reviewed=await (await request("/admin/orders?review=required")).json();assert.equal(reviewed.total,summary.operations.reviewRequired);assert.ok(reviewed.orders.every((o:any)=>o.reviewRequired));
   const cleared=await (await request("/admin/orders?review=clear")).json();assert.ok(cleared.orders.every((o:any)=>!o.reviewRequired));

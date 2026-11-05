@@ -17,6 +17,7 @@ El proyecto está en desarrollo y cuenta con un entorno de validación local. La
 - Montos rápidos de efectivo, registro idempotente y anulación auditada de ventas presenciales.
 - Inventario compartido entre ventas web y del local.
 - Resumen de ventas con métricas y separación por canal.
+- Reporte de ventas descargable en Excel y PDF, comprobante PDF por venta del local y hoja PDF de pedido para despacho, con auditoría de descargas.
 - Interfaz adaptable a escritorio y móvil.
 
 ## Tecnologías
@@ -131,6 +132,8 @@ corepack pnpm test:admin
 corepack pnpm test:store-sales
 corepack pnpm test:analytics:api
 ```
+
+Suites añadidas: `test:reports` (Excel y PDF, sin base de datos), `test:reports:api` y `test:hardening`. `test:admin` y `test:shipping` necesitan además el frontend en el puerto 3100.
 
 Las suites HTTP crean y retiran datos sintéticos. No deben ejecutarse sobre bases comerciales. Algunas regresiones históricas requieren una configuración de envío específica; revisa las condiciones de cada suite antes de ejecutarla.
 

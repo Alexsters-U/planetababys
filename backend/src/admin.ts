@@ -16,6 +16,10 @@ import {dashboardSummary} from "./analytics";
 import {offerSchema,quotePublic,shippingToken} from "./shipping";
 import {storeSales} from "./store-sales";
 import {shippingNotifications} from "./admin-notifications";
+import {buildSalesReport} from "./reports";
+import {buildSalesReportPdf,buildOrderSheet} from "./report-pdf";
+import {cached,invalidateCatalog,invalidateSales} from "./cache";
+import {salesReportQuerySchema,reportWindow} from "../../src/shared/reports";
 export const admin=express.Router();
 const pageSchema=z.coerce.number().int().min(1).max(100000).default(1);
 const pageSizeSchema=z.enum(["10","25","50","100"]).default("25").transform(Number);
@@ -61,8 +65,42 @@ admin.post("/shipping-quotes/:id/decline",async(req,res)=>{
   res.json({ok:true});
 });
 admin.get("/summary",async(req,res)=>{
-  const {days}=z.object({days:z.enum(["7","30","90"]).default("30")}).parse(req.query);
-  res.json(await dashboardSummary(Number(days) as 7|30|90));
+  const {days,fresh}=z.object({days:z.enum(["7","30","90"]).default("30"),fresh:z.enum(["1"]).optional()}).parse(req.query);
+  // 20 s de caché invalidada por ventas, pagos y stock; «Actualizar» pide datos frescos.
+  res.json(await cached("dashboard","summary:"+days,fresh?0:20,()=>dashboardSummary(Number(days) as 7|30|90)));
+});
+// Documentos PDF: se abren en el navegador para imprimir o guardar; no se almacenan en caché.
+export function sendPdf(res:express.Response,file:{buffer:Buffer;fileName:string},disposition:"inline"|"attachment"="inline") {
+  res.setHeader("Content-Type","application/pdf");
+  res.setHeader("Content-Disposition",`${disposition}; filename="${file.fileName.replace(/[^A-Za-z0-9._-]/g,"_")}"`);
+  res.setHeader("X-Content-Type-Options","nosniff");
+  res.send(file.buffer);
+}
+admin.get("/reports/sales.pdf",limit("admin-export",6,60),async(req,res)=>{
+  const query=salesReportQuerySchema.parse(req.query),window=reportWindow(query);
+  const report=await buildSalesReportPdf(window,{generatedBy:res.locals.admin.email});
+  await db.auditLog.create({data:{adminId:res.locals.admin.id,action:"EXPORT_SALES_REPORT_PDF",entity:"Report",entityId:report.fileName,
+    detail:{mode:window.mode,start:window.start.toISOString(),end:window.end.toISOString(),counts:report.counts}}});
+  sendPdf(res,report,"attachment");
+});
+admin.get("/orders/:id/sheet.pdf",limit("admin-document",60,60),async(req,res)=>{
+  const id=z.string().min(1).max(64).parse(String(req.params.id));
+  const sheet=await buildOrderSheet(id);
+  // La hoja contiene datos de entrega del cliente: cada descarga queda auditada.
+  await db.auditLog.create({data:{adminId:res.locals.admin.id,action:"EXPORT_ORDER_SHEET",entity:"Order",entityId:id}});
+  sendPdf(res,sheet);
+});
+admin.get("/reports/sales.xlsx",limit("admin-export",6,60),async(req,res)=>{
+  const query=salesReportQuerySchema.parse(req.query);
+  const window=reportWindow(query),includeContact=query.contact==="true";
+  const report=await buildSalesReport(window,{includeContact,generatedBy:res.locals.admin.email});
+  // La exportación saca datos de clientes del sistema: queda registrada con su alcance.
+  await db.auditLog.create({data:{adminId:res.locals.admin.id,action:"EXPORT_SALES_REPORT",entity:"Report",entityId:report.fileName,
+    detail:{mode:window.mode,start:window.start.toISOString(),end:window.end.toISOString(),includeContact,counts:report.counts}}});
+  res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition",`attachment; filename="${report.fileName}"`);
+  res.setHeader("X-Content-Type-Options","nosniff");
+  res.send(report.buffer);
 });
 admin.get("/products",async(req,res)=>{
   const query=productsQuery.parse(req.query);
@@ -91,6 +129,7 @@ admin.post("/products",async(req,res)=>{
     await tx.auditLog.create({data:{adminId:res.locals.admin.id,action:"CREATE_PRODUCT",entity:"Product",entityId:p.id,detail:{name:p.name,priceCents:p.priceCents,stock:p.stock,promotionEnabled:p.promotionEnabled,promotionPriceCents:p.promotionPriceCents,promotionStartsAt:p.promotionStartsAt?.toISOString()??null,promotionEndsAt:p.promotionEndsAt?.toISOString()??null}}});
     return p;
   });
+  await invalidateCatalog();
   res.status(201).json({product:pricedProduct(product,new Date())});
 });
 admin.patch("/products/:id",async(req,res)=>{
@@ -109,6 +148,7 @@ admin.patch("/products/:id",async(req,res)=>{
     await tx.auditLog.create({data:{adminId:res.locals.admin.id,action:"UPDATE_PRODUCT",entity:"Product",entityId:id,detail:data}});
     return tx.product.findUniqueOrThrow({where:{id},include:{images:true}});
   });
+  await invalidateCatalog();
   res.json({product:pricedProduct(product,new Date())});
 });
 admin.delete("/products/:id",async(req,res)=>{
@@ -119,6 +159,7 @@ admin.delete("/products/:id",async(req,res)=>{
     const p=await tx.product.delete({where:{id}});
     await tx.auditLog.create({data:{adminId:res.locals.admin.id,action:"DELETE_PRODUCT",entity:"Product",entityId:id,detail:{name:p.name}}});
   });
+  await invalidateCatalog();
   res.json({ok:true});
 });
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024,files:1},fileFilter(_req,file,cb){cb(null,["image/jpeg","image/png","image/webp","image/avif"].includes(file.mimetype));}});
@@ -159,5 +200,6 @@ admin.patch("/orders",async(req,res)=>{
     await tx.auditLog.create({data:{adminId:res.locals.admin.id,action:"UPDATE_ORDER_STATUS",entity:"Order",entityId:input.id,detail:{from:order.status,to:input.status}}});
     return updated;
   });
+  await invalidateSales();
   res.json({order});
 });

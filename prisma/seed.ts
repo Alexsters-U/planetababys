@@ -152,7 +152,7 @@ async function main() {
   if(prod && (!process.env.SEED_ADMIN_EMAIL || !process.env.SEED_ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD==="password" || process.env.SEED_ADMIN_PASSWORD.length<16 || process.env.SEED_ADMIN_EMAIL==="test@admin.com")) throw new Error("Producción requiere credenciales administrativas propias y contraseña de 16 caracteres");
   const email = process.env.SEED_ADMIN_EMAIL || "test@admin.com";
   const password = process.env.SEED_ADMIN_PASSWORD || "password";
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 12);
 
   const admin = await prisma.adminUser.upsert({
     where: { email },

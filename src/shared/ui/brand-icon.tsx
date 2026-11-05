@@ -1,5 +1,5 @@
 import type {SVGProps} from "react";
-export type BrandIconName="planet"|"products"|"orders"|"sales"|"clock"|"ticket"|"stock"|"alert"|"tag"|"refresh"|"logout"|"plus"|"photo"|"arrow"|"chevron"|"check"|"copy"|"location"|"status-approved"|"status-rejected"|"status-pending"|"store";
+export type BrandIconName="planet"|"products"|"orders"|"sales"|"clock"|"ticket"|"stock"|"alert"|"tag"|"refresh"|"logout"|"plus"|"photo"|"arrow"|"chevron"|"check"|"copy"|"location"|"status-approved"|"status-rejected"|"status-pending"|"store"|"download";
 const paths:Record<BrandIconName,React.ReactNode>={
   planet:<><circle cx="12" cy="12" r="6"/><ellipse cx="12" cy="12" rx="11" ry="3.5" transform="rotate(-28 12 12)"/><path d="m16 2 .7 1.3L18 4l-1.3.7L16 6l-.7-1.3L14 4l1.3-.7Z" fill="var(--icon-accent,#F5DB9A)" stroke="none"/></>,
   products:<><path d="m4 7 8-4 8 4v11l-8 4-8-4Z M4 7l8 4 8-4M12 11v11M8 5l8 4v4"/><path d="m3 2 .5 1L5 4l-1.5.5L3 6l-.5-1.5L1 4l1.5-1Z" fill="var(--icon-accent,#B8D8C8)" stroke="none"/></>,
@@ -21,6 +21,7 @@ const paths:Record<BrandIconName,React.ReactNode>={
   "status-rejected":<><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></>,
   "status-pending":<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   store:<><path d="M3 10v11h18V10M2 10l2-7h16l2 7M2 10a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0M9 21v-7h6v7M8 3l-1 7M16 3l1 7"/></>,
+  download:<><path d="M12 3v12m-5-5 5 5 5-5M4 17v3h16v-3"/><circle cx="20" cy="4" r="2" fill="var(--icon-accent,#B8D8C8)" stroke="none"/></>,
   copy:<><path d="M6 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/><rect x="8" y="8" width="11" height="13" rx="2.5"/><path d="M11 12h5M11 16h3"/><path d="m20 1 .8 1.7L23 3.5l-2.2.8L20 6l-.8-1.7-2.2-.8 2.2-.8Z" fill="var(--icon-accent,#F5DB9A)" stroke="none"/></>,
   location:<><ellipse cx="12" cy="19" rx="9" ry="2.5" transform="rotate(-12 12 19)"/><path d="M18 9c0 4-6 10-6 10S6 13 6 9a6 6 0 0 1 12 0Z" fill="var(--icon-surface,#F1EAF8)"/><circle cx="12" cy="9" r="2"/><path d="m20 2 .7 1.4L22.5 4l-1.8.7L20 6l-.7-1.3L17.5 4l1.8-.6Z" fill="var(--icon-accent,#EAB4C8)" stroke="none"/></>,
 };

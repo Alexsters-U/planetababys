@@ -38,6 +38,7 @@ function SaleDetails({sale}:{sale:StoreSaleView}){
     <p className="flex justify-between border-t border-brand-line pt-4 text-lg font-extrabold"><span>Total</span><span>{formatCOP(sale.totalCents)}</span></p>
     <dl className="grid gap-2"><div><dt className="inline font-semibold">Pago: </dt><dd className="inline">{STORE_PAYMENT_LABELS[sale.paymentMethod]}</dd></div>{sale.cashReceivedCents!==null&&<><div>Efectivo recibido: {formatCOP(sale.cashReceivedCents)}</div><div>Cambio entregado: {formatCOP(sale.cashChangeCents??0)}</div></>}{sale.paymentReference&&<div className="break-words">Referencia de transferencia: {sale.paymentReference}</div>}{sale.notes&&<div className="break-words">Nota: {sale.notes}</div>}</dl>
     {sale.status==="VOIDED"&&<div className="rounded-xl bg-red-50 p-4 text-red-800"><p className="font-bold">Venta anulada · unidades devueltas al inventario</p><p className="mt-1 break-words">{sale.voidReason}</p><p className="mt-1 text-xs">{sale.voidedAt&&formatDate(sale.voidedAt)} · {sale.voidedBy?.name}</p></div>}
+    <a href={`/api/admin/store-sales/${encodeURIComponent(sale.id)}/receipt.pdf`} target="_blank" rel="noopener" className="btn-outline w-fit gap-2" data-testid="store-sale-receipt-pdf"><BrandIcon name="download" size={18}/>Comprobante PDF</a>
   </div>;
 }
 
